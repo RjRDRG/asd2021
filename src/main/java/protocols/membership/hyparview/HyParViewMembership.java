@@ -159,7 +159,9 @@ public class HyParViewMembership extends GenericProtocol {
     }
 
     private void uponDisconnect(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-
+        activeView.remove(from);
+        //removeNetworkPeer
+        addNodeToPassiveView(from);
     }
 
     private void uponJoinBack(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
