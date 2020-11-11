@@ -127,23 +127,46 @@ public class HyParViewMembership extends GenericProtocol {
 
 
     /*--------------------------------- Messages ------------------------------------- */
-    private void uponJoin(SampleMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponJoin(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
+        addNodeToActiveView(from);
+
+        HyParViewMessage forwardJoin = new HyParViewForwardJoin(arwl, from);
+        for(Host h: activeView) {
+            if(h != from) {
+                sendMessage(forwardJoin, h);
+            }
+        }
+    }
+
+    private void uponForwardJoin(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
+        int ttl = msg.getTtl();
+        Host newNode = msg.getHost();
+
+        if(activeView.size() == 1 || ttl == 0) {
+            HyParViewMessage joinBack = new HyParViewJoinBack(0, self);
+            addNodeToActiveView(newNode);
+            sendMessage(joinBack, newNode);
+        } else {
+            if(ttl == prwl) {
+                addNodeToPassiveView(newNode);
+            }
+            Host random = getRandomNode(activeView, from);
+            if(random != null) {
+                HyParViewMessage forwardJoin = new HyParViewForwardJoin(ttl-1, newNode);
+                sendMessage(forwardJoin, random);
+            }
+        }
+    }
+
+    private void uponDisconnect(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
 
     }
 
-    private void uponForwardJoin(SampleMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponJoinBack(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
 
     }
 
-    private void uponDisconnect(SampleMessage msg, Host from, short sourceProto, int channelId) {
-
-    }
-
-    private void uponJoinBack(SampleMessage msg, Host from, short sourceProto, int channelId) {
-
-    }
-
-    private void uponNeighbour(SampleMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponNeighbour(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
 
     }
 
@@ -157,7 +180,7 @@ public class HyParViewMembership extends GenericProtocol {
     private void addNodeToPassiveView(Host newHost) {
         if (!newHost.equals(self) && !activeView.contains(newHost) && !passiveView.contains(newHost)) {
             if(passiveView.size() >= maxPassiveView) {
-                passiveView.remove(getRandomHost(passiveView));
+                passiveView.remove(getRandomNode(passiveView));
             }
             passiveView.add(newHost);
         }
@@ -173,17 +196,17 @@ public class HyParViewMembership extends GenericProtocol {
     }
 
     private void dropRandomFromActiveView() {
-        Host rnd = getRandomHost(activeView);
+        Host rnd = getRandomNode(activeView);
         HyParViewMessage hm = new HyParViewDisconnect(0, self);
         sendMessage(hm,rnd);
         addNodeToPassiveView(rnd);
     }
 
-    private Host getRandomHost(Set<Host> set) {
-        return this.getRandomHost(set, null);
+    private Host getRandomNode(Set<Host> set) {
+        return this.getRandomNode(set, null);
     }
 
-    private Host getRandomHost(Set<Host> set, Host toBeRemoved){
+    private Host getRandomNode(Set<Host> set, Host toBeRemoved){
         Set<Host> copy = new HashSet<>(set);
         if (toBeRemoved != null){
             copy.remove(toBeRemoved);
