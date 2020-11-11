@@ -165,15 +165,16 @@ public class HyParViewMembership extends GenericProtocol {
     }
 
     private void uponJoinBack(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-
+        addNodeToActiveView(from);
     }
 
     private void uponNeighbour(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-
+        if(msg.getTtl() == 1 || activeView.size() < maxActiveView) {
+            addNodeToActiveView(from);
+        }
     }
 
-    private void uponMsgFail(ProtoMessage msg, Host host, short destProto,
-                             Throwable throwable, int channelId) {
+    private void uponMsgFail(ProtoMessage msg, Host host, short destProto, Throwable throwable, int channelId) {
         //If a message fails to be sent, for whatever reason, log the message and the reason
         logger.error("Message {} to {} failed, reason: {}", msg, host, throwable);
     }
