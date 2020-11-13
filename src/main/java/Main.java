@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import protocols.apps.BroadcastApp;
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.plumtree.PlumtreeBroadcast;
+import protocols.membership.full.SimpleFullMembership;
 import protocols.membership.hyparview.HyParViewMembership;
 import utils.InterfaceToIp;
 
@@ -50,7 +51,7 @@ public class Main {
         PlumtreeBroadcast broadcast = new PlumtreeBroadcast(props, myself);
         // Membership Protocol
         //SimpleFullMembership membership = new SimpleFullMembership(props, myself);
-        HyParViewMembership membership = new HyParViewMembership(props, myself);
+        SimpleFullMembership membership = new SimpleFullMembership(props, myself);
 
         //Register applications in babel
         babel.registerProtocol(broadcastApp);
