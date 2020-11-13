@@ -143,7 +143,7 @@ public class HyParViewMembership extends GenericProtocol {
 
     /*--------------------------------- Messages ------------------------------------- */
     private void uponJoin(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received JOIN from {}", from);
+        logger.debug("Received JOIN from {}", from);
         openConnection(from);
         HyParViewMessage forwardJoin = new HyParViewForwardJoin(arwl, from);
         for(Host h: activeView) {
@@ -155,14 +155,12 @@ public class HyParViewMembership extends GenericProtocol {
     }
 
     private void uponForwardJoin(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received FORWARD_JOIN from {}", from);
-
         int ttl = msg.getTtl();
         Host newNode = msg.getHost();
 
         if (activeView.size() == 1 || ttl == 0) {
             openConnection(newNode);
-            logger.trace("Sending JOIN_BACK to {}", from);
+            logger.debug("Received FORWARD_JOIN from {} and sending JOIN_BACK", from);
             sendMessage(new HyParViewJoinBack(0, self), newNode);
         } else {
             if (ttl == prwl) {
@@ -171,7 +169,7 @@ public class HyParViewMembership extends GenericProtocol {
             }
             Host random = getRandomNode(activeView, from);
             if (random != null) {
-                logger.trace("Redirected FORWARD_JOIN to {}", random);
+                logger.debug("Received FORWARD_JOIN from {} and redirecting to {}", from, random);
                 HyParViewMessage forwardJoin = new HyParViewForwardJoin(ttl - 1, newNode);
                 sendMessage(forwardJoin, random);
             }
@@ -179,28 +177,27 @@ public class HyParViewMembership extends GenericProtocol {
     }
 
     private void uponDisconnect(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received DISCONNECT from {}", from);
+        logger.debug("Received DISCONNECT from {}", from);
         if(activeView.remove(from)) {
             closeConnection(from);
-            logger.debug("Disconnected from {}", from);
             addNodeToPassiveView(from);
         }
     }
 
     private void uponJoinBack(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received JOIN_BACK from {}", from);
+        logger.debug("Received JOIN_BACK from {}", from);
         openConnection(from);
     }
 
     private void uponNeighbour(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received NEIGHBOUR from {}", from);
+        logger.debug("Received NEIGHBOUR from {}", from);
         if(msg.getTtl() == 1 || activeView.size() < maxActiveView) {
             openConnection(from);
         }
     }
 
     private void uponShuffle(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received SHUFFLE from {}", from);
+        logger.debug("Received SHUFFLE from {}", from);
         HyParViewShuffle shuffleMsg = (HyParViewShuffle) msg;
         int ttl = shuffleMsg.getTtl()-1;
 
@@ -220,7 +217,7 @@ public class HyParViewMembership extends GenericProtocol {
     }
 
     private void uponShuffleReply(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received SHUFFLE_REPLY from {}", from);
+        logger.debug("Received SHUFFLE_REPLY from {}", from);
         HyParViewShuffleReply shuffleReplyMsg = (HyParViewShuffleReply) msg;
         addNodesToPassiveViewAfterShuffle(shuffleReplyMsg.getNodesSubset(), shuffleReplyMsg.getOGNodesSubset());
     }
@@ -292,6 +289,8 @@ public class HyParViewMembership extends GenericProtocol {
         Host peer = event.getNode();
         logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
         if(activeView.remove(peer) && passiveView.size() > 0) {
+            closeConnection(peer);
+            triggerNotification(new NeighbourDown(peer));
             openConnection(getRandomNode(passiveView));
         }
     }
