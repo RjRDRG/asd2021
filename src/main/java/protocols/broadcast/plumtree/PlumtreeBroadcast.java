@@ -18,7 +18,6 @@ import protocols.membership.common.notifications.ChannelCreated;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -38,19 +37,21 @@ public class PlumtreeBroadcast extends GenericProtocol {
     private int channelId;
     
     private final Host myself; //My own address/port
-    
+
+    private long peerCount;
+
     private final Set<Host> eagerPushPeers;
     
     private final Set<Host> lazyPushPeers; 
-    private final Queue<IHaveMessage> lazyQueue; 
-    
-    private final long lazyPushBatchSizeInitial;
-    private final long lazyPushRateInitial;
+    private final Queue<IHaveMessage> lazyQueue;
+
+    private final long lazyPushRate;
+
     private final long lazyPushDelayThreshold;
-    private long lazyPushBatchSize;
-    private long lazyPushRate;
-    private Long lazyPushTimer;
     private long lazyPushDelayCounter;
+
+    private final long lazyPushBatchSizeInitial;
+    private long lazyPushBatchSize;
 
     private final Map<UUID, GossipMessage> received; //Set of received messages 
     private final Map<UUID, Queue<IHaveMessage>> missing; //Set of missing messages
@@ -66,25 +67,26 @@ public class PlumtreeBroadcast extends GenericProtocol {
     public PlumtreeBroadcast(Properties properties, Host myself) throws HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
-        
+
+        peerCount = 0;
+
         eagerPushPeers = new HashSet<>();
         
         lazyPushPeers = new HashSet<>();
         lazyQueue = new LinkedList<>();
         
-        lazyPushBatchSize = lazyPushBatchSizeInitial = Long.parseLong(properties.getProperty("lazy_push_batch_size", "10"));
-        lazyPushRate = lazyPushRateInitial = Long.parseLong(properties.getProperty("lazy_push_rate", "2000"));
-        lazyPushDelayThreshold = Long.parseLong(properties.getProperty("lazy_push_delay_threshold", "10")); 
-        lazyPushTimer = null;
+        lazyPushBatchSize = lazyPushBatchSizeInitial = Long.parseLong(properties.getProperty("lazy_push_batch_size", "7"));
+        lazyPushRate = Long.parseLong(properties.getProperty("lazy_push_rate", "200")); //200 mile seconds
+        lazyPushDelayThreshold = Long.parseLong(properties.getProperty("lazy_push_delay_threshold", "5"));
         lazyPushDelayCounter = 0;
         
         received = new HashMap<>();
         missing = new HashMap<>();
         
         graftTimers = new HashMap<>();
-        graftTimeout = Integer.parseInt(properties.getProperty("graft_timeout", "2000")); //2 seconds
+        graftTimeout = Integer.parseInt(properties.getProperty("graft_timeout", "2000")); //2000 mili seconds
         
-        optimizationThreshold = Long.parseLong(properties.getProperty("optimization_threshold", "2000")); //2 seconds
+        optimizationThreshold = Long.parseLong(properties.getProperty("optimization_threshold", "2000")); //2000 mili seconds
         
         channelReady = false;
 
@@ -155,10 +157,14 @@ public class PlumtreeBroadcast extends GenericProtocol {
 
     /*--------------------------- Protocol Invariants ----------------------------------- */
     
+    private boolean invPeerCount() {
+    	return peerCount == eagerPushPeers.size() + lazyPushPeers.size();
+    }
+
     private boolean invPeers() {
-    	Set<Host> intersection = new HashSet<>(eagerPushPeers);
-    	intersection.retainAll(lazyPushPeers);
-    	return intersection.isEmpty();
+        Set<Host> intersection = new HashSet<>(eagerPushPeers);
+        intersection.retainAll(lazyPushPeers);
+        return intersection.isEmpty();
     }
     
     private boolean invSelf() {
@@ -176,10 +182,11 @@ public class PlumtreeBroadcast extends GenericProtocol {
     }
     
     private void assertInvariants() {
-    	assert invPeers() : "peers invariant compromissed";
-    	assert invSelf() : "self invariant compromissed";
-    	assert invMessages() : "messages invariant compromissed";
-    	assert invTimers() : "timers invariant compromissed";
+        assert invPeerCount() : "peer count invariant compromised" + " lazy:" + lazyPushPeers.size() + " eager:" + eagerPushPeers;
+    	assert invPeers() : "peers invariant compromised";
+    	assert invSelf() : "self invariant compromised";
+    	assert invMessages() : "messages invariant compromised";
+    	assert invTimers() : "timers invariant compromised";
     }
   
     /*--------------------------------- Requests ---------------------------------------- */
@@ -188,8 +195,9 @@ public class PlumtreeBroadcast extends GenericProtocol {
         
         //Create the message object.
         GossipMessage gm = new GossipMessage(request.getMsgId(), request.getSender(), sourceProto, request.getMsg());
-
         uponGossipMessage(gm, myself, getProtoId(), channelId);
+
+        setupPeriodicTimer(new LazyTimer(), 0, lazyPushRate);
     }
     
     /*--------------------------------- Messages ---------------------------------------- */
@@ -212,10 +220,6 @@ public class PlumtreeBroadcast extends GenericProtocol {
             
             eagerPushMessage(m, from, sourceProto, channelId);
             lazyPushMessage(m, from, sourceProto, channelId);
-            
-            if(lazyPushTimer == null) {
-            	lazyPushTimer = setupTimer(new LazyTimer(), lazyPushRate);
-            }
             
             if(!from.equals(myself)) {
             	eagerPushPeers.add(from);
@@ -258,7 +262,7 @@ public class PlumtreeBroadcast extends GenericProtocol {
         	missing.get(mid).add(m);
         	
         	if(!graftTimers.containsKey(mid)) {
-        		long timerId = setupTimer(new GraftTimer(mid), graftTimeout);
+        		long timerId = setupTimer(new GraftTimer(mid, graftTimeout), graftTimeout);
         		graftTimers.put(mid, timerId);
         	} 
         }
@@ -299,18 +303,22 @@ public class PlumtreeBroadcast extends GenericProtocol {
         if(holders != null && !holders.isEmpty()) {
             Host sender = holders.poll().getSender();
 
-            eagerPushPeers.add(sender);
-            lazyPushPeers.remove(sender);
-
             GraftMessage gm = new GraftMessage(mid, true, myself);
             sendMessage(gm, sender);
 
             logger.info("Sent {} to {}", gm, sender);
 
             if (!holders.isEmpty()) {
-                graftTimers.put(mid, setupTimer(timer, graftTimeout * 2));
+                graftTimers.put(
+                        mid,
+                        setupTimer(
+                                new GraftTimer(timer.getMid(), timer.getTimeout()*2),
+                                timer.getTimeout()*2
+                        )
+                );
             }
         }
+
         assertInvariants();
     }
     
@@ -320,22 +328,16 @@ public class PlumtreeBroadcast extends GenericProtocol {
     	if(sm == null) {
     		lazyPushDelayCounter++;
     		double denominator = Math.pow(lazyPushDelayCounter, 0.7);
-    		lazyPushRate += lazyPushRateInitial/denominator;
     		lazyPushBatchSize += lazyPushBatchSizeInitial/denominator;
-    		
-    		lazyPushTimer = setupTimer(timer, lazyPushRate);
     	}
     	else {
     		lazyPushDelayCounter = Math.max(0, lazyPushDelayCounter-1);
-    		lazyPushRate = lazyPushRateInitial;
     		lazyPushBatchSize = lazyPushBatchSizeInitial;
     		
     		for(IHaveMessage hm : sm) {
     			sendMessage(hm, hm.getTarget());
     			logger.info("Sent {} to {}", hm, hm.getTarget());	
     		}
-    		
-    		lazyPushTimer = setupTimer(timer, lazyPushRate);
     	}
     	
     	assertInvariants();
@@ -404,6 +406,8 @@ public class PlumtreeBroadcast extends GenericProtocol {
     //When the membership protocol notifies of a new neighbour (or leaving one) simply update my list of neighbours.
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
         for(Host h: notification.getNeighbours()) {
+            peerCount++;
+
         	eagerPushPeers.add(h);
         	logger.debug("New neighbour: " + h);
         }
@@ -411,6 +415,8 @@ public class PlumtreeBroadcast extends GenericProtocol {
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         for(Host h: notification.getNeighbours()) {
+            peerCount--;
+
         	eagerPushPeers.remove(h);
         	lazyPushPeers.remove(h);
         	
