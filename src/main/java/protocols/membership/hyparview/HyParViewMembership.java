@@ -67,7 +67,7 @@ public class HyParViewMembership extends GenericProtocol {
         this.maxActiveView = Integer.parseInt(props.getProperty("max_active_view", "5"));
         this.maxPassiveView = Integer.parseInt(props.getProperty("max_passive_view", "30"));
         this.arwl = Integer.parseInt(props.getProperty("arwl", "3"));
-        this.prwl = Integer.parseInt(props.getProperty("prwl", "1"));
+        this.prwl = Integer.parseInt(props.getProperty("prwl", "2"));
 
         String cMetricsInterval = props.getProperty("channel_metrics_interval", "10000"); //10 seconds
 
@@ -126,10 +126,10 @@ public class HyParViewMembership extends GenericProtocol {
                 String contact = props.getProperty("contact");
                 String[] hostElems = contact.split(":");
                 Host contactHost = new Host(InetAddress.getByName(hostElems[0]), Short.parseShort(hostElems[1]));
-                addNodeToActiveView(contactHost);
-                logger.trace("{} moved to Active View", contactHost);
                 openConnection(contactHost);
                 sendMessage(new HyParViewJoin(0, self), contactHost);
+                addNodeToActiveView(contactHost);
+                logger.trace("{} moved to Active View", contactHost);
             } catch (Exception e) {
                 logger.error("Invalid contact on configuration: '" + props.getProperty("contacts"));
                 e.printStackTrace();
@@ -148,7 +148,7 @@ public class HyParViewMembership extends GenericProtocol {
         HyParViewMessage forwardJoin = new HyParViewForwardJoin(arwl, from);
         for(Host h: activeView) {
             if(h != from) {
-                logger.trace("Sending FORWARD_JOIN to {}", h);
+                logger.trace("Sending FORWARD_JOIN from {} to {}", from, h);
                 sendMessage(forwardJoin, h);
             }
         }
@@ -160,16 +160,19 @@ public class HyParViewMembership extends GenericProtocol {
         int ttl = msg.getTtl();
         Host newNode = msg.getHost();
 
-        if(activeView.size() == 1 || ttl == 0) {
+        if (activeView.size() == 1 || ttl == 0) {
             openConnection(newNode);
+            logger.trace("Sending JOIN_BACK to {}", from);
             sendMessage(new HyParViewJoinBack(0, self), newNode);
         } else {
-            if(ttl == prwl) {
+            if (ttl == prwl) {
+                logger.trace("{} added to Passive View", from);
                 addNodeToPassiveView(newNode);
             }
             Host random = getRandomNode(activeView, from);
-            if(random != null) {
-                HyParViewMessage forwardJoin = new HyParViewForwardJoin(ttl-1, newNode);
+            if (random != null) {
+                logger.trace("Redirected FORWARD_JOIN to {}", random);
+                HyParViewMessage forwardJoin = new HyParViewForwardJoin(ttl - 1, newNode);
                 sendMessage(forwardJoin, random);
             }
         }
@@ -177,9 +180,11 @@ public class HyParViewMembership extends GenericProtocol {
 
     private void uponDisconnect(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
         logger.trace("Received DISCONNECT from {}", from);
-        activeView.remove(from);
-        closeConnection(from);
-        addNodeToPassiveView(from);
+        if(activeView.remove(from)) {
+            closeConnection(from);
+            logger.debug("Disconnected from {}", from);
+            addNodeToPassiveView(from);
+        }
     }
 
     private void uponJoinBack(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
@@ -257,10 +262,9 @@ public class HyParViewMembership extends GenericProtocol {
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         Host peer = event.getNode();
         logger.debug("Connection to {} is down cause {}", peer, event.getCause());
-        activeView.remove(peer);
-        if(addNodeToPassiveView(peer)) {
-            logger.trace("{} moved to Passive View", peer);
+        if(activeView.remove(peer) && passiveView.size() > 0) {
             triggerNotification(new NeighbourDown(peer));
+            openConnection(getRandomNode(passiveView));
         }
     }
 
@@ -269,8 +273,11 @@ public class HyParViewMembership extends GenericProtocol {
     //Thus the peer will be in the pending set, and not in the membership (unless something is very wrong with our code)
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
         logger.debug("Connection to {} failed cause: {}", event.getNode(), event.getCause());
-        passiveView.remove(event.getNode());
-        logger.trace("{} removed from Passive View", event.getNode());
+        if(passiveView.remove(event.getNode())) {
+            logger.trace("{} removed from Passive View", event.getNode());
+        }
+        openConnection(getRandomNode(passiveView));
+        logger.trace("Attempting node {}", event.getNode());
     }
 
     //If someone established a connection to me, this event is triggered. In this protocol we do nothing with this event.
@@ -284,10 +291,9 @@ public class HyParViewMembership extends GenericProtocol {
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         Host peer = event.getNode();
         logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
-        activeView.remove(peer);
-        addNodeToPassiveView(peer);
-        logger.trace("{} moved to Passive View", peer);
-        triggerNotification(new NeighbourDown(peer));
+        if(activeView.remove(peer) && passiveView.size() > 0) {
+            openConnection(getRandomNode(passiveView));
+        }
     }
 
     /* --------------------------------- Metrics ---------------------------- */
@@ -368,6 +374,7 @@ public class HyParViewMembership extends GenericProtocol {
         logger.trace("Sending DISCONNECT to {}", randomNode);
         sendMessage(disconnect, randomNode);
         closeConnection(randomNode);
+        logger.debug("Disconnected from {}", randomNode);
         addNodeToPassiveView(randomNode);
     }
 
