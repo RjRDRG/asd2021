@@ -14,10 +14,9 @@ public class HyParViewMessage extends ProtoMessage {
 
     public final static short DEFAULT_MSG_ID = 101;
     public final short msg_id;
-    protected final byte[] message;
-    protected static Host host;
+    protected final byte[] content;
+    protected Host host;
     protected final int ttl;
-    private final int size = -1;
 
     public HyParViewMessage(int ttl, Host host) {
         this(DEFAULT_MSG_ID, new byte[]{}, ttl, host);
@@ -27,16 +26,16 @@ public class HyParViewMessage extends ProtoMessage {
         this(msg_id, new byte[]{}, ttl, host);
     }
 
-    public HyParViewMessage(short msg_id, byte[] message, int ttl, Host host) {
+    public HyParViewMessage(short msg_id, byte[] content, int ttl, Host host) {
         super(msg_id);
         this.msg_id = msg_id;
-        this.message = message;
+        this.content = content;
         this.ttl = ttl;
-        HyParViewMessage.host = host;
+        this.host = host;
     }
 
-    public byte[] getMessage() {
-        return message;
+    public byte[] getContent() {
+        return content;
     }
 
     public int getTtl() { return ttl; }
@@ -56,14 +55,24 @@ public class HyParViewMessage extends ProtoMessage {
         @Override
         public void serialize(HyParViewMessage message, ByteBuf out) throws IOException {
             out.writeInt(message.ttl);
-            Host.serializer.serialize(host, out);
+            out.writeShort(message.msg_id);
+            Host.serializer.serialize(message.host, out);
+            out.writeInt(message.content.length);
+            if (message.content.length > 0) {
+                out.writeBytes(message.content);
+            }
         }
 
         @Override
         public HyParViewMessage deserialize(ByteBuf in) throws IOException {
             int ttl = in.readInt();
+            short msg_id = in.readShort();
             Host host = Host.serializer.deserialize(in);
-            return new HyParViewMessage(ttl, host);
+            int size = in.readInt();
+            byte[] content = new byte[size];
+            if (size > 0)
+                in.readBytes(content);
+            return new HyParViewMessage(msg_id, content, ttl, host);
         }
     };
 }

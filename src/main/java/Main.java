@@ -4,7 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.apps.BroadcastApp;
 import protocols.broadcast.flood.FloodBroadcast;
-import protocols.membership.full.SimpleFullMembership;
+import protocols.membership.hyparview.HyParViewMembership;
 import utils.InterfaceToIp;
 
 import java.net.InetAddress;
@@ -22,7 +22,7 @@ public class Main {
     private static final Logger logger = LogManager.getLogger(Main.class);
 
     //Default babel configuration file (can be overridden by the "-config" launch argument)
-    private static final String DEFAULT_CONF = "babel_config.properties";
+    private static final String DEFAULT_CONF = "config.properties";
 
     public static void main(String[] args) throws Exception {
 
@@ -48,7 +48,8 @@ public class Main {
         // Broadcast Protocol
         FloodBroadcast broadcast = new FloodBroadcast(props, myself);
         // Membership Protocol
-        SimpleFullMembership membership = new SimpleFullMembership(props, myself);
+        //SimpleFullMembership membership = new SimpleFullMembership(props, myself);
+        HyParViewMembership membership = new HyParViewMembership(props, myself);
 
         //Register applications in babel
         babel.registerProtocol(broadcastApp);

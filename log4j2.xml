@@ -13,11 +13,9 @@
     </Appenders>
 
     <Loggers>
-        <!-- UNCOMMENT TO SPECIFY LOG LEVEL OF PACKAGES
-        <Logger level="info" name="protocols.apps"/>
-        <Logger level="info" name="protocols.overlays"/>
-        <Logger level="debug" name="protocols.dissemination"/>
-        -->
+        <Logger level="off" name="protocols.apps"/>
+        <Logger level="info" name="protocols.broadcast"/>
+        <Logger level="debug" name="protocols.membership"/>
 
         <Logger level="info" name="io.netty"/>
         <Logger level="info" name="network"/>
@@ -26,7 +24,7 @@
 
 
         <Root level="debug">
-            <AppenderRef ref="Console" level="info"/>
+            <AppenderRef ref="Console" level="debug"/>
             <!-- UNCOMMENT TO WRITE LOGS TO A FILE
            <AppenderRef ref="MyFile" level="all"/>
            -->
