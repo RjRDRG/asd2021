@@ -14,8 +14,8 @@
 
     <Loggers>
         <Logger level="off" name="protocols.apps"/>
-        <Logger level="info" name="protocols.broadcast"/>
-        <Logger level="debug" name="protocols.membership"/>
+        <Logger level="off" name="protocols.broadcast"/>
+        <Logger level="trace" name="protocols.membership"/>
 
         <Logger level="info" name="io.netty"/>
         <Logger level="info" name="network"/>
@@ -23,7 +23,7 @@
         <Logger level="info" name="babel"/>
 
 
-        <Root level="debug">
+        <Root level="all">
             <AppenderRef ref="Console" level="debug"/>
             <!-- UNCOMMENT TO WRITE LOGS TO A FILE
            <AppenderRef ref="MyFile" level="all"/>
