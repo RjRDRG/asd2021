@@ -33,7 +33,7 @@ public class FloodBroadcast extends GenericProtocol {
     //We can only start sending messages after the membership protocol informed us that the channel is ready
     private boolean channelReady;
 
-    public FloodBroadcast(Properties properties, Host myself) throws IOException, HandlerRegistrationException {
+    public FloodBroadcast(Properties properties, Host myself) throws HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
         neighbours = new HashSet<>();
@@ -86,7 +86,7 @@ public class FloodBroadcast extends GenericProtocol {
 
     /*--------------------------------- Messages ---------------------------------------- */
     private void uponFloodMessage(FloodMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
         //If we already received it once, do nothing (or we would end up with a nasty infinite loop)
         if (received.add(msg.getMid())) {
             //Deliver the message to the application (even if it came from it)
@@ -95,7 +95,7 @@ public class FloodBroadcast extends GenericProtocol {
             //Simply send the message to every known neighbour (who will then do the same)
             neighbours.forEach(host -> {
                 if (!host.equals(from)) {
-                    logger.trace("Sent {} to {}", msg, host);
+                    logger.info("Sent {} to {}", msg, host);
                     sendMessage(msg, host);
                 }
             });

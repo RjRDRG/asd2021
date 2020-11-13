@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.apps.BroadcastApp;
 import protocols.broadcast.flood.FloodBroadcast;
+import protocols.broadcast.plumtree.PlumtreeBroadcast;
 import protocols.membership.hyparview.HyParViewMembership;
 import utils.InterfaceToIp;
 
@@ -44,9 +45,9 @@ public class Main {
         logger.info("Hello, I am {}", myself);
 
         // Application
-        BroadcastApp broadcastApp = new BroadcastApp(myself, props, FloodBroadcast.PROTOCOL_ID);
+        BroadcastApp broadcastApp = new BroadcastApp(myself, props, PlumtreeBroadcast.PROTOCOL_ID);
         // Broadcast Protocol
-        FloodBroadcast broadcast = new FloodBroadcast(props, myself);
+        PlumtreeBroadcast broadcast = new PlumtreeBroadcast(props, myself);
         // Membership Protocol
         //SimpleFullMembership membership = new SimpleFullMembership(props, myself);
         HyParViewMembership membership = new HyParViewMembership(props, myself);
