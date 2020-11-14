@@ -18,14 +18,7 @@ import protocols.membership.common.notifications.ChannelCreated;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Queue;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class PlumtreeBroadcast extends GenericProtocol {
     private static final Logger logger = LogManager.getLogger(PlumtreeBroadcast.class);
@@ -51,12 +44,16 @@ public class PlumtreeBroadcast extends GenericProtocol {
 
     private final Map<UUID, GossipMessage> received; //Set of received messages 
     private final Map<UUID, Queue<IHaveMessage>> missing; //Set of missing messages
-    
+
+    private final Map<UUID, Set<Host>> messageHolders;
+
     private final Map<UUID, Long> graftTimers;
     private final int graftTimeout;
     private final int graftTimeoutAux;
     
     private final long optimizationThreshold;
+
+    private final boolean minimizeMessagesTransmitted;
     
     //We can only start sending messages after the membership protocol informed us that the channel is ready
     private boolean channelReady;
@@ -77,13 +74,16 @@ public class PlumtreeBroadcast extends GenericProtocol {
         
         received = new HashMap<>();
         missing = new HashMap<>();
-        
+        messageHolders = new HashMap<>();
+
         graftTimers = new HashMap<>();
         graftTimeout = Integer.parseInt(properties.getProperty("graft_timeout", "150"));
         graftTimeoutAux = Integer.parseInt(properties.getProperty("graft_timeout_aux", "75"));
 
         optimizationThreshold = Long.parseLong(properties.getProperty("optimization_threshold", "75"));
-        
+
+        minimizeMessagesTransmitted = Boolean.parseBoolean(properties.getProperty("minimizeMessagesTransmitted", "true"));
+
         channelReady = false;
 
         /*--------------------- Register Request Handlers ----------------------------- */
@@ -220,6 +220,7 @@ public class PlumtreeBroadcast extends GenericProtocol {
             lazyPushMessage(m, from, sourceProto, channelId);
             
             missing.remove(mid);
+            messageHolders.remove(mid);
         }
         else if(!from.equals(myself)) {
     		eagerPushPeers.remove(from);
@@ -250,9 +251,12 @@ public class PlumtreeBroadcast extends GenericProtocol {
         
         if (!received.containsKey(mid)) {
         	
-        	missing.putIfAbsent(m.getMid(), new LinkedList<>());
+        	missing.putIfAbsent(mid, new LinkedList<>());
         	missing.get(mid).add(m);
-        	
+
+            messageHolders.putIfAbsent(mid, new HashSet<>());
+            messageHolders.get(mid).add(m.getSender());
+
         	if(!graftTimers.containsKey(mid)) {
         		long timerId = setupTimer(new GraftTimer(mid, graftTimeout), graftTimeout);
         		graftTimers.put(mid, timerId);
@@ -334,19 +338,33 @@ public class PlumtreeBroadcast extends GenericProtocol {
     
     private void eagerPushMessage(GossipMessage m, Host from, short sourceProto, int channelId) {
     	for(Host peer : eagerPushPeers) {
-            if (!peer.equals(from)) {
-                sendMessage(m, peer);
-                logger.info("Sent {} to {}", m, peer);
+            if (peer.equals(from))
+                continue;
+
+            if(minimizeMessagesTransmitted) {
+                    if (messageHolders.getOrDefault(m.getMid(), Collections.emptySet()).contains(peer)) {
+                        continue;
+                    }
             }
+
+            sendMessage(m, peer);
+            logger.info("Sent {} to {}", m, peer);
         }
     }
     
     private void lazyPushMessage(GossipMessage m, Host from, short sourceProto, int channelId) {
     	for(Host peer : lazyPushPeers) {
-    		if (!peer.equals(from)) {
-    			IHaveMessage hm = new IHaveMessage(m.getMid(), myself, peer);
-    			lazyQueue.add(hm); 
-    		}
+            if (peer.equals(from))
+                continue;
+
+            if(minimizeMessagesTransmitted) {
+                if (messageHolders.getOrDefault(m.getMid(), Collections.emptySet()).contains(peer)) {
+                    continue;
+                }
+            }
+
+            IHaveMessage hm = new IHaveMessage(m.getMid(), myself, peer);
+            lazyQueue.add(hm);
 		}
     }
     
