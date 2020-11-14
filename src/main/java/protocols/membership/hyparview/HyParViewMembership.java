@@ -162,13 +162,16 @@ public class HyParViewMembership extends GenericProtocol {
 
         if(activeView.size() == 1 || ttl == 0) {
             openConnection(newNode);
+            logger.trace("Sending JOIN_BACK to {}", from);
             sendMessage(new HyParViewJoinBack(0, self), newNode);
         } else {
             if(ttl == prwl) {
+                logger.trace("{} added to Passive View", from);
                 addNodeToPassiveView(newNode);
             }
             Host random = getRandomNode(activeView, from);
             if(random != null) {
+                logger.trace("Redirected FORWARD_JOIN to {}", random);
                 HyParViewMessage forwardJoin = new HyParViewForwardJoin(ttl-1, newNode);
                 sendMessage(forwardJoin, random);
             }

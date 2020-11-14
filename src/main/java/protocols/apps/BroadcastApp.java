@@ -65,12 +65,12 @@ public class BroadcastApp extends GenericProtocol {
     @Override
     public void init(Properties props) {
         //Wait prepareTime seconds before starting
-        logger.info("Waiting...");
+        logger.warn("Waiting...");
         setupTimer(new StartTimer(), prepareTime * 1000);
     }
 
     private void uponStartTimer(StartTimer startTimer, long timerId) {
-        logger.info("Starting");
+        logger.warn("Starting");
         //Start broadcasting periodically
         broadCastTimer = setupPeriodicTimer(new BroadcastTimer(), 0, broadcastInterval);
         //And setup the stop timer
@@ -96,12 +96,12 @@ public class BroadcastApp extends GenericProtocol {
     }
 
     private void uponStopTimer(StopTimer stopTimer, long timerId) {
-        logger.info("Stopping broadcasts");
+        logger.warn("Stopping broadcasts");
         this.cancelTimer(broadCastTimer);
         setupTimer(new ExitTimer(), cooldownTime * 1000);
     }
     private void uponExitTimer(ExitTimer exitTimer, long timerId) {
-        logger.info("Exiting...");
+        logger.warn("Exiting...");
         System.exit(0);
     }
 
