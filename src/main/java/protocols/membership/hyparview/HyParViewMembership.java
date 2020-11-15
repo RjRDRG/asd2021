@@ -50,7 +50,6 @@ public class HyParViewMembership extends GenericProtocol {
     private final Random rnd;
 
     private final int channelId; //Id of the created channel
-    private final int channelId2; //Id of the created channel
 
     public HyParViewMembership(Properties props, Host self) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
@@ -81,7 +80,6 @@ public class HyParViewMembership extends GenericProtocol {
         channelProps.setProperty(TCPChannel.HEARTBEAT_TOLERANCE_KEY, "3000"); //Time passed without heartbeats until closing a connection
         channelProps.setProperty(TCPChannel.CONNECT_TIMEOUT_KEY, "1000"); //TCP connect timeout
         channelId = createChannel(TCPChannel.NAME, channelProps); //Create the channel with the given properties
-        channelId2 = createChannel(TCPChannel.NAME, channelProps); //Create the channel with the given properties
 
         /*---------------------- Register Request Handlers ------------------------- */
         //registerRequestHandler(PROTOCOL_ID, this::requestHandler);
@@ -183,6 +181,7 @@ public class HyParViewMembership extends GenericProtocol {
         if(activeView.remove(from)) {
             closeConnection(from);
             addNodeToPassiveView(from);
+            triggerNotification(new NeighbourDown(from));
         }
     }
 
@@ -211,8 +210,9 @@ public class HyParViewMembership extends GenericProtocol {
             if(shuffleMsg.getHost() != self) {
                 int shuffleSize = shuffleMsg.getNNodes();
                 Set<Host> replyPassiveView = getRandomSubsetExcluding(passiveView, shuffleSize, from);
-                logger.debug("Received SHUFFLE from {} and sending SHUFFLE_REPLY", from);
-                openConnection(from, channelId2);
+                logger.debug("Received SHUFFLE from {} and sending SHUFFLE_REPLY", shuffleMsg.getHost());
+                openConnection(shuffleMsg.getHost());
+                sendMessage(new HyParViewShuffleReply(1, self, replyPassiveView, shuffleMsg.getNodesSubset()), from);
                 addNodesToPassiveViewAfterShuffle(shuffleMsg.getNodesSubset(), replyPassiveView);
             }
         }
@@ -247,16 +247,12 @@ public class HyParViewMembership extends GenericProtocol {
     //If a connection is successfully established, this event is triggered. In this protocol, we want to add the
     //respective peer to the membership, and inform the Dissemination protocol via a notification.
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        if(channelId == channelId2) {
-            logger.debug("Got Shuffle temp Connection");
-        } else {
-            Host peer = event.getNode();
-            logger.debug("Connection to {} is up", peer);
-            passiveView.remove(peer);
-            if (addNodeToActiveView(peer)) {
-                logger.trace("{} moved to Active View", peer);
-                triggerNotification(new NeighbourUp(peer));
-            }
+        Host peer = event.getNode();
+        logger.debug("Connection to {} is up", peer);
+        passiveView.remove(peer);
+        if (addNodeToActiveView(peer)) {
+            logger.trace("{} moved to Active View", peer);
+            triggerNotification(new NeighbourUp(peer));
         }
     }
 
@@ -265,9 +261,10 @@ public class HyParViewMembership extends GenericProtocol {
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         Host peer = event.getNode();
         logger.debug("Connection to {} is down cause {}", peer, event.getCause());
-        if(activeView.remove(peer) && passiveView.size() > 0) {
+        if(activeView.remove(peer)) {
             triggerNotification(new NeighbourDown(peer));
-            openConnection(getRandomNode(passiveView));
+            if(passiveView.size() > 0)
+                openConnection(getRandomNode(passiveView));
         }
     }
 
@@ -294,10 +291,11 @@ public class HyParViewMembership extends GenericProtocol {
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         Host peer = event.getNode();
         logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
-        if(activeView.remove(peer) && passiveView.size() > 0) {
+        if(activeView.remove(peer)) {
             closeConnection(peer);
             triggerNotification(new NeighbourDown(peer));
-            openConnection(getRandomNode(passiveView));
+            if(passiveView.size() > 0)
+                openConnection(getRandomNode(passiveView));
         }
     }
 

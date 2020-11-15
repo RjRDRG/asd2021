@@ -51,8 +51,8 @@ public class Main {
         //FloodBroadcast broadcast = new FloodBroadcast(props, myself);
         PlumtreeBroadcast broadcast = new PlumtreeBroadcast(props, myself);
         // Membership Protocol
-        SimpleFullMembership membership = new SimpleFullMembership(props, myself);
-        //HyParViewMembership membership = new HyParViewMembership(props, myself);
+        //SimpleFullMembership membership = new SimpleFullMembership(props, myself);
+        HyParViewMembership membership = new HyParViewMembership(props, myself);
 
         //Register applications in babel
         babel.registerProtocol(broadcastApp);
