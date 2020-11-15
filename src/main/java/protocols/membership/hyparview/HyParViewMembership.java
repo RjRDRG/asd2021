@@ -129,6 +129,7 @@ public class HyParViewMembership extends GenericProtocol {
                 openConnection(contactHost);
                 sendMessage(new HyParViewJoin(0, self), contactHost);
                 addNodeToActiveView(contactHost);
+                logger.debug("Sent JOIN to {}", contactHost);
                 logger.trace("{} moved to Active View", contactHost);
             } catch (Exception e) {
                 logger.error("Invalid contact on configuration: '" + props.getProperty("contacts"));
@@ -148,7 +149,7 @@ public class HyParViewMembership extends GenericProtocol {
         HyParViewMessage forwardJoin = new HyParViewForwardJoin(arwl, from);
         for(Host h: activeView) {
             if(h != from) {
-                logger.trace("Sending FORWARD_JOIN from {} to {}", from, h);
+                logger.debug("Sent FORWARD_JOIN to {}", h);
                 sendMessage(forwardJoin, h);
             }
         }
@@ -160,7 +161,7 @@ public class HyParViewMembership extends GenericProtocol {
 
         if (activeView.size() == 1 || ttl == 0) {
             openConnection(newNode);
-            logger.debug("Received FORWARD_JOIN from {} and sending JOIN_BACK", from);
+            logger.debug("Sent JOIN_BACK to {}", from);
             sendMessage(new HyParViewJoinBack(0, self), newNode);
         } else {
             if (ttl == prwl) {
@@ -169,7 +170,7 @@ public class HyParViewMembership extends GenericProtocol {
             }
             Host random = getRandomNode(activeView, from);
             if (random != null) {
-                logger.debug("Received FORWARD_JOIN from {} and redirecting to {}", from, random);
+                logger.debug("Sent FORWARD_JOIN from {} to {}", from, random);
                 HyParViewMessage forwardJoin = new HyParViewForwardJoin(ttl - 1, newNode);
                 sendMessage(forwardJoin, random);
             }
@@ -204,13 +205,13 @@ public class HyParViewMembership extends GenericProtocol {
         if(ttl > 0 && activeView.size() > 1) {
             Host randomNode = getRandomNode(activeView, from);
             HyParViewMessage forwardMsg = new HyParViewShuffle(ttl, shuffleMsg.getHost(), shuffleMsg.getNodesSubset());
-            logger.debug("Received SHUFFLE from {} and redirecting to {}", from, randomNode);
+            logger.debug("Sent SHUFFLE redirect from {} to {}", from, randomNode);
             sendMessage(forwardMsg, randomNode);
         } else {
             if(shuffleMsg.getHost() != self) {
                 int shuffleSize = shuffleMsg.getNNodes();
                 Set<Host> replyPassiveView = getRandomSubsetExcluding(passiveView, shuffleSize, from);
-                logger.debug("Received SHUFFLE from {} and sending SHUFFLE_REPLY", shuffleMsg.getHost());
+                logger.debug("Sent SHUFFLE_REPLY after receiving SHUFFLE from {}", shuffleMsg.getHost());
                 openConnection(shuffleMsg.getHost());
                 sendMessage(new HyParViewShuffleReply(1, self, replyPassiveView, shuffleMsg.getNodesSubset()), from);
                 addNodesToPassiveViewAfterShuffle(shuffleMsg.getNodesSubset(), replyPassiveView);
@@ -233,7 +234,7 @@ public class HyParViewMembership extends GenericProtocol {
     private void uponPassiveViewTimer(HyParViewTimer timer, long timerId) {
         if(activeView.size() > 1) {
             Host randomNode = getRandomNode(activeView);
-            logger.trace("Sending SHUFFLE to {}", randomNode);
+            logger.debug("Sent SHUFFLE to {}", randomNode);
             Set<Host> subset = getRandomSubsetExcluding(activeView, ka, randomNode);
             subset.addAll(getRandomSubset(passiveView, kp));
             HyParViewMessage shuffle = new HyParViewShuffle(arwl, self, subset);
@@ -276,8 +277,10 @@ public class HyParViewMembership extends GenericProtocol {
         if(passiveView.remove(event.getNode())) {
             logger.trace("{} removed from Passive View", event.getNode());
         }
-        openConnection(getRandomNode(passiveView));
-        logger.trace("Attempting node {}", event.getNode());
+        if(passiveView.size() > 0) {
+            openConnection(getRandomNode(passiveView));
+            logger.debug("Attempting node {}", event.getNode());
+        }
     }
 
     //If someone established a connection to me, this event is triggered. In this protocol we do nothing with this event.
@@ -290,7 +293,7 @@ public class HyParViewMembership extends GenericProtocol {
     //A connection someone established to me is disconnected.
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         Host peer = event.getNode();
-        logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
+        logger.debug("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
         if(activeView.remove(peer)) {
             closeConnection(peer);
             triggerNotification(new NeighbourDown(peer));
@@ -374,10 +377,11 @@ public class HyParViewMembership extends GenericProtocol {
     private void dropRandomFromActiveView() {
         Host randomNode = getRandomNode(activeView);
         HyParViewMessage disconnect = new HyParViewDisconnect(0, self);
-        logger.trace("Sending DISCONNECT to {}", randomNode);
+        logger.debug("Sent DISCONNECT to {}", randomNode);
         sendMessage(disconnect, randomNode);
         closeConnection(randomNode);
         logger.debug("Disconnected from {}", randomNode);
+        activeView.remove(randomNode);
         addNodeToPassiveView(randomNode);
     }
 

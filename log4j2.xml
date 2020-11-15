@@ -5,16 +5,16 @@
 				<PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] %logger{0}:} %msg%n"/>
         </Console>
 
-<!--
+
         <File name="MyFile" fileName="logs/${sys:logFilename}.log" append="false" immediateFlush="true">
             <PatternLayout pattern="[%d{HH:mm:ss,SSS}] %logger{0}: %msg%n"/>
-        </File>-->
+        </File>
     </Appenders>
 
     <Loggers>
         <Logger level="off" name="protocols.apps"/>
-        <Logger level="all" name="protocols.broadcast"/>
-        <Logger level="debug" name="protocols.membership"/>
+        <Logger level="off" name="protocols.broadcast"/>
+        <Logger level="info" name="protocols.membership"/>
 
         <Logger level="info" name="io.netty"/>
         <Logger level="info" name="network"/>
@@ -24,7 +24,7 @@
 
         <Root level="all">
             <AppenderRef ref="Console" level="all"/>
-            <!--<AppenderRef ref="MyFile" level="all"/>-->
+            <AppenderRef ref="MyFile" level="all"/>
         </Root>
    </Loggers>
 
