@@ -50,6 +50,7 @@ public class HyParViewMembership extends GenericProtocol {
     private final Random rnd;
 
     private final int channelId; //Id of the created channel
+    private final int channelId2; //Id of the created channel
 
     public HyParViewMembership(Properties props, Host self) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
@@ -62,8 +63,8 @@ public class HyParViewMembership extends GenericProtocol {
 
         //Get some configurations from the Properties object
         this.shuffleTime = Integer.parseInt(props.getProperty("shuffle_time", "13000"));
-        this.ka = Integer.parseInt(props.getProperty("active_view_subset_size", "2"));
-        this.kp = Integer.parseInt(props.getProperty("passive_view_subset_size", "2"));
+        this.ka = Integer.parseInt(props.getProperty("shuffle_active_view_size", "1"));
+        this.kp = Integer.parseInt(props.getProperty("shuffle_passive_view_size", "2"));
         this.maxActiveView = Integer.parseInt(props.getProperty("max_active_view", "5"));
         this.maxPassiveView = Integer.parseInt(props.getProperty("max_passive_view", "30"));
         this.arwl = Integer.parseInt(props.getProperty("arwl", "3"));
@@ -80,6 +81,7 @@ public class HyParViewMembership extends GenericProtocol {
         channelProps.setProperty(TCPChannel.HEARTBEAT_TOLERANCE_KEY, "3000"); //Time passed without heartbeats until closing a connection
         channelProps.setProperty(TCPChannel.CONNECT_TIMEOUT_KEY, "1000"); //TCP connect timeout
         channelId = createChannel(TCPChannel.NAME, channelProps); //Create the channel with the given properties
+        channelId2 = createChannel(TCPChannel.NAME, channelProps); //Create the channel with the given properties
 
         /*---------------------- Register Request Handlers ------------------------- */
         //registerRequestHandler(PROTOCOL_ID, this::requestHandler);
@@ -90,8 +92,8 @@ public class HyParViewMembership extends GenericProtocol {
         registerMessageSerializer(channelId, HyParViewDisconnect.MSG_ID, HyParViewMessage.serializer);
         registerMessageSerializer(channelId, HyParViewJoinBack.MSG_ID, HyParViewMessage.serializer);
         registerMessageSerializer(channelId, HyParViewNeighbour.MSG_ID, HyParViewMessage.serializer);
-        //registerMessageSerializer(channelId, HyParViewShuffle.MSG_ID, HyParViewShuffle.serializer);
-        //registerMessageSerializer(channelId, HyParViewShuffleReply.MSG_ID, HyParViewShuffleReply.serializer);
+        registerMessageSerializer(channelId, HyParViewShuffle.MSG_ID, HyParViewShuffle.serializer);
+        registerMessageSerializer(channelId, HyParViewShuffleReply.MSG_ID, HyParViewShuffleReply.serializer);
 
         /*---------------------- Register Message Handlers -------------------------- */
         registerMessageHandler(channelId, HyParViewJoin.MSG_ID, this::uponJoin, this::uponMsgFail);
@@ -99,11 +101,11 @@ public class HyParViewMembership extends GenericProtocol {
         registerMessageHandler(channelId, HyParViewDisconnect.MSG_ID, this::uponDisconnect, this::uponMsgFail);
         registerMessageHandler(channelId, HyParViewJoinBack.MSG_ID, this::uponJoinBack, this::uponMsgFail);
         registerMessageHandler(channelId, HyParViewNeighbour.MSG_ID, this::uponNeighbour, this::uponMsgFail);
-        //registerMessageHandler(channelId, HyParViewShuffle.MSG_ID, this::uponShuffle, this::uponMsgFail);
-        //registerMessageHandler(channelId, HyParViewShuffleReply.MSG_ID, this::uponShuffleReply, this::uponMsgFail);
+        registerMessageHandler(channelId, HyParViewShuffle.MSG_ID, this::uponShuffle, this::uponMsgFail);
+        registerMessageHandler(channelId, HyParViewShuffleReply.MSG_ID, this::uponShuffleReply, this::uponMsgFail);
 
         /*--------------------- Register Timer Handlers ----------------------------- */
-        //registerTimerHandler(HyParViewTimer.TIMER_ID, this::uponPassiveViewTimer);
+        registerTimerHandler(HyParViewTimer.TIMER_ID, this::uponPassiveViewTimer);
 
         /*-------------------- Register Channel Events ------------------------------- */
         registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
@@ -138,7 +140,7 @@ public class HyParViewMembership extends GenericProtocol {
         }
 
         //Setup the timer used to send shuffles
-        //setupPeriodicTimer(new HyParViewTimer(), this.shuffleTime, this.shuffleTime);
+        setupPeriodicTimer(new HyParViewTimer(), this.shuffleTime, this.shuffleTime);
     }
 
     /*--------------------------------- Messages ------------------------------------- */
@@ -197,22 +199,22 @@ public class HyParViewMembership extends GenericProtocol {
     }
 
     private void uponShuffle(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received SHUFFLE from {}", from);
         HyParViewShuffle shuffleMsg = (HyParViewShuffle) msg;
         int ttl = shuffleMsg.getTtl()-1;
 
         if(ttl > 0 && activeView.size() > 1) {
             Host randomNode = getRandomNode(activeView, from);
             HyParViewMessage forwardMsg = new HyParViewShuffle(ttl, shuffleMsg.getHost(), shuffleMsg.getNodesSubset());
+            logger.debug("Received SHUFFLE from {} and redirecting to {}", from, randomNode);
             sendMessage(forwardMsg, randomNode);
         } else {
-            int shuffleSize = shuffleMsg.getNNodes();
-            Set<Host> replyPassiveView = getRandomSubsetExcluding(passiveView, shuffleSize, from);
-            logger.trace("Sending SHUFFLE_REPLY to {}", from);
-            openConnection(from);
-            sendMessage(new HyParViewShuffleReply(1, self, replyPassiveView, shuffleMsg.getNodesSubset()), from);
-            closeConnection(from);
-            addNodesToPassiveViewAfterShuffle(shuffleMsg.getNodesSubset(), replyPassiveView);
+            if(shuffleMsg.getHost() != self) {
+                int shuffleSize = shuffleMsg.getNNodes();
+                Set<Host> replyPassiveView = getRandomSubsetExcluding(passiveView, shuffleSize, from);
+                logger.debug("Received SHUFFLE from {} and sending SHUFFLE_REPLY", from);
+                openConnection(from, channelId2);
+                addNodesToPassiveViewAfterShuffle(shuffleMsg.getNodesSubset(), replyPassiveView);
+            }
         }
     }
 
@@ -245,12 +247,16 @@ public class HyParViewMembership extends GenericProtocol {
     //If a connection is successfully established, this event is triggered. In this protocol, we want to add the
     //respective peer to the membership, and inform the Dissemination protocol via a notification.
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        Host peer = event.getNode();
-        logger.debug("Connection to {} is up", peer);
-        passiveView.remove(peer);
-        if (addNodeToActiveView(peer)) {
-            logger.trace("{} moved to Active View", peer);
-            triggerNotification(new NeighbourUp(peer));
+        if(channelId == channelId2) {
+            logger.debug("Got Shuffle temp Connection");
+        } else {
+            Host peer = event.getNode();
+            logger.debug("Connection to {} is up", peer);
+            passiveView.remove(peer);
+            if (addNodeToActiveView(peer)) {
+                logger.trace("{} moved to Active View", peer);
+                triggerNotification(new NeighbourUp(peer));
+            }
         }
     }
 
