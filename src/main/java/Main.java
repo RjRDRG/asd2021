@@ -46,13 +46,13 @@ public class Main {
         logger.info("Hello, I am {}", myself);
 
         // Application
-        BroadcastApp broadcastApp = new BroadcastApp(myself, props, FloodBroadcast.PROTOCOL_ID);
+        BroadcastApp broadcastApp = new BroadcastApp(myself, props, PlumtreeBroadcast.PROTOCOL_ID);
         // Broadcast Protocol
-        FloodBroadcast broadcast = new FloodBroadcast(props, myself);
-        //PlumtreeBroadcast broadcast = new PlumtreeBroadcast(props, myself);
+        //FloodBroadcast broadcast = new FloodBroadcast(props, myself);
+        PlumtreeBroadcast broadcast = new PlumtreeBroadcast(props, myself);
         // Membership Protocol
-        // SimpleFullMembership membership = new SimpleFullMembership(props, myself);
-        HyParViewMembership membership = new HyParViewMembership(props, myself);
+        SimpleFullMembership membership = new SimpleFullMembership(props, myself);
+        //HyParViewMembership membership = new HyParViewMembership(props, myself);
 
         //Register applications in babel
         babel.registerProtocol(broadcastApp);

@@ -2,20 +2,19 @@
 <Configuration status="INFO" shutdownHook="disable">
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
-				<PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}:} %msg%n"/>
+				<PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] %logger{0}:} %msg%n"/>
         </Console>
 
-        <!-- UNCOMMENT TO WRITE LOGS TO A FILE
+
         <File name="MyFile" fileName="logs/${sys:logFilename}.log" append="false" immediateFlush="true">
-            <PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}: %msg%n"/>
+            <PatternLayout pattern="[%d{HH:mm:ss,SSS}] %logger{0}: %msg%n"/>
         </File>
-        -->
     </Appenders>
 
     <Loggers>
         <Logger level="off" name="protocols.apps"/>
-        <Logger level="off" name="protocols.broadcast"/>
-        <Logger level="trace" name="protocols.membership"/>
+        <Logger level="all" name="protocols.broadcast"/>
+        <Logger level="off" name="protocols.membership"/>
 
         <Logger level="info" name="io.netty"/>
         <Logger level="info" name="network"/>
@@ -23,12 +22,10 @@
         <Logger level="info" name="babel"/>
 
 
-        <Root level="debug">
-            <AppenderRef ref="Console" level="debug"/>
-            <!-- UNCOMMENT TO WRITE LOGS TO A FILE
-           <AppenderRef ref="MyFile" level="all"/>
-           -->
-       </Root>
+        <Root level="all">
+            <AppenderRef ref="Console" level="all"/>
+            <AppenderRef ref="MyFile" level="all"/>
+        </Root>
    </Loggers>
 
 </Configuration>
