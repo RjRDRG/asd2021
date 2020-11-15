@@ -18,6 +18,7 @@ import protocols.membership.common.notifications.NeighbourUp;
 import protocols.membership.common.replies.GetMembershipReply;
 import protocols.membership.common.requests.GetMembership;
 import protocols.membership.full.messages.SampleMessage;
+import protocols.membership.full.timers.InfoTimer;
 import protocols.membership.full.timers.SampleTimer;
 import protocols.membership.hyparview.messages.*;
 import protocols.membership.hyparview.timers.HyParViewTimer;
@@ -140,6 +141,11 @@ public class HyParViewMembership extends GenericProtocol {
 
         //Setup the timer used to send shuffles
         setupPeriodicTimer(new HyParViewTimer(), this.shuffleTime, this.shuffleTime);
+
+        //Setup the timer to display protocol information (also registered handler previously)
+        int pMetricsInterval = Integer.parseInt(props.getProperty("protocol_metrics_interval", "10000"));
+        if (pMetricsInterval > 0)
+            setupPeriodicTimer(new HyParViewTimer(), pMetricsInterval, pMetricsInterval);
     }
 
     /*--------------------------------- Messages ------------------------------------- */
@@ -179,11 +185,10 @@ public class HyParViewMembership extends GenericProtocol {
 
     private void uponDisconnect(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received DISCONNECT from {}", from);
-        if(activeView.remove(from)) {
-            closeConnection(from);
-            addNodeToPassiveView(from);
-            triggerNotification(new NeighbourDown(from));
-        }
+        activeView.remove(from);
+        closeConnection(from);
+        addNodeToPassiveView(from);
+        triggerNotification(new NeighbourDown(from));
     }
 
     private void uponJoinBack(HyParViewMessage msg, Host from, short sourceProto, int channelId) {
@@ -262,11 +267,11 @@ public class HyParViewMembership extends GenericProtocol {
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         Host peer = event.getNode();
         logger.debug("Connection to {} is down cause {}", peer, event.getCause());
-        if(activeView.remove(peer)) {
-            triggerNotification(new NeighbourDown(peer));
-            if(passiveView.size() > 0)
-                openConnection(getRandomNode(passiveView));
-        }
+        activeView.remove(peer);
+        triggerNotification(new NeighbourDown(peer));
+        if(passiveView.size() > 0)
+            openConnection(getRandomNode(passiveView));
+
     }
 
     //If a connection fails to be established, this event is triggered. In this protocol, we simply remove from the
@@ -294,12 +299,11 @@ public class HyParViewMembership extends GenericProtocol {
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         Host peer = event.getNode();
         logger.debug("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
-        if(activeView.remove(peer)) {
-            closeConnection(peer);
-            triggerNotification(new NeighbourDown(peer));
-            if(passiveView.size() > 0)
-                openConnection(getRandomNode(passiveView));
-        }
+        activeView.remove(peer);
+        closeConnection(peer);
+        triggerNotification(new NeighbourDown(peer));
+        if(passiveView.size() > 0)
+            openConnection(getRandomNode(passiveView));
     }
 
     /* --------------------------------- Metrics ---------------------------- */
@@ -380,9 +384,10 @@ public class HyParViewMembership extends GenericProtocol {
         logger.debug("Sent DISCONNECT to {}", randomNode);
         sendMessage(disconnect, randomNode);
         closeConnection(randomNode);
-        logger.debug("Disconnected from {}", randomNode);
+        triggerNotification(new NeighbourDown(randomNode));
         activeView.remove(randomNode);
         addNodeToPassiveView(randomNode);
+        logger.debug("Disconnected from {}", randomNode);
     }
 
     private Host getRandomNode(Set<Host> set) {

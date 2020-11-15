@@ -2,19 +2,19 @@
 <Configuration status="INFO" shutdownHook="disable">
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
-				<PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] %logger{0}:} %msg%n"/>
+				<PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}:} %msg%n"/>
         </Console>
 
 
         <File name="MyFile" fileName="logs/${sys:logFilename}.log" append="false" immediateFlush="true">
-            <PatternLayout pattern="[%d{HH:mm:ss,SSS}] %logger{0}: %msg%n"/>
+            <PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}: %msg%n"/>
         </File>
     </Appenders>
 
     <Loggers>
         <Logger level="off" name="protocols.apps"/>
         <Logger level="off" name="protocols.broadcast"/>
-        <Logger level="info" name="protocols.membership"/>
+        <Logger level="debug" name="protocols.membership"/>
 
         <Logger level="info" name="io.netty"/>
         <Logger level="info" name="network"/>
