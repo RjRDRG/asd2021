@@ -5,10 +5,10 @@
 				<PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}:} %msg%n"/>
         </Console>
 
-
+        <!--
         <File name="MyFile" fileName="logs/${sys:logFilename}.log" append="false" immediateFlush="true">
             <PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}: %msg%n"/>
-        </File>
+        </File>-->
     </Appenders>
 
     <Loggers>
@@ -24,7 +24,7 @@
 
         <Root level="all">
             <AppenderRef ref="Console" level="all"/>
-            <AppenderRef ref="MyFile" level="all"/>
+            <!--<AppenderRef ref="MyFile" level="all"/>-->
         </Root>
    </Loggers>
 

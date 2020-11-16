@@ -46,24 +46,73 @@ public class Main {
         logger.info("Hello, I am {}", myself);
 
         // Application
-        BroadcastApp broadcastApp = new BroadcastApp(myself, props, PlumtreeBroadcast.PROTOCOL_ID);
+        String broadcastProto = props.getProperty("broadcast_proto");
+        BroadcastApp broadcastApp;
+        if(broadcastProto.equals("flood")) {
+            broadcastApp = new BroadcastApp(myself, props, FloodBroadcast.PROTOCOL_ID);
+        } else if(broadcastProto.equals("plumtree")) {
+            broadcastApp = new BroadcastApp(myself, props, PlumtreeBroadcast.PROTOCOL_ID);
+        } else {
+            logger.warn("Invalid broadcast protocol... Choosing default (Flood)");
+            broadcastApp = new BroadcastApp(myself, props, FloodBroadcast.PROTOCOL_ID);
+        }
+
+        boolean isFlood = true;
         // Broadcast Protocol
-        //FloodBroadcast broadcast = new FloodBroadcast(props, myself);
-        PlumtreeBroadcast broadcast = new PlumtreeBroadcast(props, myself);
+        FloodBroadcast floodBroadcast = null;
+        PlumtreeBroadcast plumBroadcast = null;
+        if(broadcastProto.equals("flood")) {
+            floodBroadcast = new FloodBroadcast(props, myself);
+        } else if(broadcastProto.equals("plumtree")){
+            plumBroadcast = new PlumtreeBroadcast(props, myself);
+            isFlood = false;
+        } else {
+            floodBroadcast = new FloodBroadcast(props, myself);
+        }
+
         // Membership Protocol
-        //SimpleFullMembership membership = new SimpleFullMembership(props, myself);
-        HyParViewMembership membership = new HyParViewMembership(props, myself);
+        boolean isFull = true;
+        SimpleFullMembership fullMembership = null;
+        HyParViewMembership hyParViewMembership = null;
+        String membershipProto = props.getProperty("membership_proto");
+        if(membershipProto.equals("full")) {
+            fullMembership = new SimpleFullMembership(props, myself);
+        } else if(membershipProto.equals("hyparview")) {
+            hyParViewMembership = new HyParViewMembership(props, myself);
+            isFull = false;
+        } else {
+            fullMembership = new SimpleFullMembership(props, myself);
+            logger.warn("Invalid membership protocol... Choosing default (Full)");
+        }
 
         //Register applications in babel
         babel.registerProtocol(broadcastApp);
-        babel.registerProtocol(broadcast);
-        babel.registerProtocol(membership);
+
+        if(isFlood) {
+            babel.registerProtocol(floodBroadcast);
+        } else {
+            babel.registerProtocol(plumBroadcast);
+        }
+
+        if(isFull) {
+            babel.registerProtocol(fullMembership);
+        } else {
+            babel.registerProtocol(hyParViewMembership);
+        }
 
         //Init the protocols. This should be done after creating all protocols, since there can be inter-protocol
         //communications in this step.
         broadcastApp.init(props);
-        broadcast.init(props);
-        membership.init(props);
+        if(isFlood) {
+            floodBroadcast.init(props);
+        } else {
+            plumBroadcast.init(props);
+        }
+        if(isFull) {
+            fullMembership.init(props);
+        } else {
+            hyParViewMembership.init(props);
+        }
 
         //Start babel and protocol threads
         babel.start();

@@ -229,19 +229,19 @@ public class SimpleFullMembership extends GenericProtocol {
     //"getInConnections" and "getOutConnections" returns the currently established connection to/from me.
     //"getOldInConnections" and "getOldOutConnections" returns connections that have already been closed.
     private void uponChannelMetrics(ChannelMetrics event, int channelId) {
-        StringBuilder sb = new StringBuilder("Channel Metrics:\n");
-        sb.append("In channels:\n");
-        event.getInConnections().forEach(c -> sb.append(String.format("\t%s: msgOut=%s (%s) msgIn=%s (%s)\n",
+        StringBuilder sb = new StringBuilder("Channel Metrics:");
+        sb.append("In channels:");
+        event.getInConnections().forEach(c -> sb.append(String.format("%s: msgOut=%s (%s) msgIn=%s (%s)$",
                 c.getPeer(), c.getSentAppMessages(), c.getSentAppBytes(), c.getReceivedAppMessages(),
                 c.getReceivedAppBytes())));
-        event.getOldInConnections().forEach(c -> sb.append(String.format("\t%s: msgOut=%s (%s) msgIn=%s (%s) (old)\n",
+        event.getOldInConnections().forEach(c -> sb.append(String.format("%s: msgOut=%s (%s) msgIn=%s (%s) (old)$",
                 c.getPeer(), c.getSentAppMessages(), c.getSentAppBytes(), c.getReceivedAppMessages(),
                 c.getReceivedAppBytes())));
-        sb.append("Out channels:\n");
-        event.getOutConnections().forEach(c -> sb.append(String.format("\t%s: msgOut=%s (%s) msgIn=%s (%s)\n",
+        sb.append("Out channels:");
+        event.getOutConnections().forEach(c -> sb.append(String.format("%s: msgOut=%s (%s) msgIn=%s (%s)$",
                 c.getPeer(), c.getSentAppMessages(), c.getSentAppBytes(), c.getReceivedAppMessages(),
                 c.getReceivedAppBytes())));
-        event.getOldOutConnections().forEach(c -> sb.append(String.format("\t%s: msgOut=%s (%s) msgIn=%s (%s) (old)\n",
+        event.getOldOutConnections().forEach(c -> sb.append(String.format("%s: msgOut=%s (%s) msgIn=%s (%s) (old)$",
                 c.getPeer(), c.getSentAppMessages(), c.getSentAppBytes(), c.getReceivedAppMessages(),
                 c.getReceivedAppBytes())));
         sb.setLength(sb.length() - 1);
